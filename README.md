@@ -4,7 +4,10 @@ Plataforma web para análise de perfis e repositórios do GitHub com scores e in
 
 ---
 
-> 📸 Screenshot em breve
+<img width="1600" height="850" alt="image" src="https://github.com/user-attachments/assets/502d4510-38af-4e33-b657-274b60d50ee4" />
+<img width="1600" height="813" alt="image" src="https://github.com/user-attachments/assets/45624ba4-5c88-456c-b8b2-1b8610922410" />
+<img width="1600" height="808" alt="image" src="https://github.com/user-attachments/assets/c0cbfaf6-3e11-4ab1-a887-427066a59718" />
+<img width="1600" height="821" alt="image" src="https://github.com/user-attachments/assets/21e116b4-b4ce-414c-8946-53d994f64fe9" />
 
 ---
 
