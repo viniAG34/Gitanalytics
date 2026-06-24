@@ -1,0 +1,38 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TipoBusca {
+  usuario
+  repositorio
+}
+
+model Usuario {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  senha_hash    String
+  nome          String          @db.VarChar(100)
+  criado_em     DateTime        @default(now())
+  atualizado_em DateTime        @updatedAt
+  historico     HistoricoBusca[]
+
+  @@map("usuarios")
+}
+
+model HistoricoBusca {
+  id            String    @id @default(uuid())
+  usuario_id    String
+  tipo_busca    TipoBusca
+  valor_buscado String    @db.VarChar(255)
+  score         Decimal?  @db.Decimal(5, 2)
+  realizada_em  DateTime  @default(now())
+  usuario       Usuario   @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@map("historico_buscas")
+}
