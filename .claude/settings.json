@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(docker cp *)",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/register -H 'Content-Type: application/json' -d '{\"nome\":\"Vinicius\",\"email\":\"vini@teste.com\",\"senha\":\"Senha123\"}')",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/register -H 'Content-Type: application/json' -d '{\"nome\":\"Outro\",\"email\":\"vini@teste.com\",\"senha\":\"Senha123\"}')",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"vini@teste.com\",\"senha\":\"Senha123\"}')",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"naoexiste@teste.com\",\"senha\":\"Senha123\"}')",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/refresh -H 'Content-Type: application/json' -d '{\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlYzM4M2M1NS0xNTI0LTRiOGYtYTFjYS1mNGI2MDIxZmZlOTUiLCJlbWFpbCI6InZpbmlAdGVzdGUuY29tIiwiaWF0IjoxNzgyMjQ5MTgyLCJleHAiOjE3ODI4NTM5ODJ9.Fs2_3f3Y8220vRTI1XAHL5cOw43f6XKtxLjJVLAjbAQ\"}')",
+      "Bash(curl -s http://localhost/api/v1/history)",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/register -H 'Content-Type: application/json' -d '{\"nome\":\"Vinicius\",\"email\":\"outro@teste.com\",\"senha\":\"SemNumero\"}')",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/register -H 'Content-Type: application/json' -d '{\"nome\":\"V\",\"email\":\"nao-email\",\"senha\":\"Senha123\"}')",
+      "Bash(curl -s http://localhost/api/v1/history -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlYzM4M2M1NS0xNTI0LTRiOGYtYTFjYS1mNGI2MDIxZmZlOTUiLCJlbWFpbCI6InZpbmlAdGVzdGUuY29tIiwiaWF0IjoxNzgyMjQ5MTgyLCJleHAiOjE3ODIzMzU1ODJ9.WDBaQCZZHv2QuAf1JcYYokA-XG8oS2bFF0sT6upBN0YXXXXX')",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/refresh -H 'Content-Type: application/json' -d '{\"refreshToken\":\"token.invalido.aqui\"}')",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"vini@teste.com\",\"senha\":\"SenhaErrada\"}')",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(./node_modules/.bin/eslint src *)",
+      "Bash(curl -s http://localhost/api/v1/github/user/torvalds)",
+      "Bash(curl -s http://localhost/)",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/register -H \"Content-Type: application/json\" -d '{\"nome\":\"Test User\",\"email\":\"test@test.com\",\"senha\":\"Senha123!\"}')",
+      "Bash(curl -s \"http://localhost/api/v1/history\")",
+      "Bash(curl -s -X POST http://localhost/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"test@test.com\",\"senha\":\"ErradaSenha123!\"}')",
+      "Bash(git check-ignore *)"
+    ]
+  }
+}
