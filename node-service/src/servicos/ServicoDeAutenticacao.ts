@@ -3,16 +3,19 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/configuracaoDoAmbiente';
 import { IRepositorioDeUsuario } from '../repositorios/interfaces';
 import { Usuario } from '../tipos';
-import { PayloadDoToken } from '../tipos';
 import {
+  CODIGO_ERRO_TOKEN_EXPIRADO,
+  CODIGO_ERRO_TOKEN_INVALIDO,
+  CODIGO_ERRO_VALIDACAO,
   CUSTO_BCRYPT,
   DURACAO_REFRESH_TOKEN,
   DURACAO_TOKEN_JWT,
   EXPIRES_IN_SEGUNDOS,
+  HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_UNAUTHORIZED,
 } from '../utilitarios/constantes';
 import { ErroCredenciaisInvalidas, ErroDeNegocio } from '../utilitarios/erros';
 import { DadosDeLogin, DadosDeRegistro } from '../validadores/validadorDeAutenticacao';
-import { HTTP_STATUS_BAD_REQUEST } from '../utilitarios/constantes';
 
 export interface ResultadoDeRegistro {
   usuario: Usuario;
@@ -57,7 +60,7 @@ export class ServicoDeAutenticacao {
     } catch {
       // Erro de unicidade do email — não revelar que o email já existe (SDD-02, spec 0.1)
       throw new ErroDeNegocio(
-        'VALIDATION_ERROR',
+        CODIGO_ERRO_VALIDACAO,
         'Dados inválidos. Verifique os campos.',
         HTTP_STATUS_BAD_REQUEST,
       );
@@ -71,7 +74,7 @@ export class ServicoDeAutenticacao {
     const usuarioEncontrado = await this.repositorioDeUsuario.buscarPorEmail(dados.email);
 
     // Sempre executa bcrypt.compare para manter tempo uniforme — SDD-06, seção 0.2
-    const hashParaComparar = usuarioEncontrado?.senhaHash ?? this.hashDummy!;
+    const hashParaComparar = usuarioEncontrado?.senhaHash ?? this.obterHashDummy();
     const senhaCorreta = await bcrypt.compare(dados.senha, hashParaComparar);
 
     if (!usuarioEncontrado || !senhaCorreta) {
@@ -93,27 +96,42 @@ export class ServicoDeAutenticacao {
   }
 
   async renovarToken(refreshToken: string): Promise<ResultadoDeRefresh> {
-    let payload: PayloadDoToken;
+    let decoded: string | jwt.JwtPayload;
     try {
-      payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as PayloadDoToken;
+      decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
     } catch (erro) {
       if (erro instanceof jwt.TokenExpiredError) {
         throw new ErroDeNegocio(
-          'TOKEN_EXPIRED',
+          CODIGO_ERRO_TOKEN_EXPIRADO,
           'Sessão expirada, faça login novamente.',
-          401,
+          HTTP_STATUS_UNAUTHORIZED,
         );
       }
-      throw new ErroDeNegocio('INVALID_TOKEN', 'Token inválido.', 401);
+      throw new ErroDeNegocio(CODIGO_ERRO_TOKEN_INVALIDO, 'Token inválido.', HTTP_STATUS_UNAUTHORIZED);
     }
 
+    const payload = this.validarPayloadJwt(decoded);
     const token = jwt.sign(
       { sub: payload.sub, email: payload.email },
       env.JWT_SECRET,
       { expiresIn: DURACAO_TOKEN_JWT },
     );
-
     return { token, expiresIn: EXPIRES_IN_SEGUNDOS };
+  }
+
+  private obterHashDummy(): string {
+    if (!this.hashDummy) {
+      throw new Error('ServicoDeAutenticacao não inicializado. Chame inicializar() antes de usar.');
+    }
+    return this.hashDummy;
+  }
+
+  private validarPayloadJwt(decoded: string | jwt.JwtPayload): { sub: string; email: string } {
+    if (typeof decoded === 'string' || typeof decoded.sub !== 'string') {
+      throw new ErroDeNegocio(CODIGO_ERRO_TOKEN_INVALIDO, 'Token inválido.', HTTP_STATUS_UNAUTHORIZED);
+    }
+    const emailRaw = decoded['email'];
+    return { sub: decoded.sub, email: typeof emailRaw === 'string' ? emailRaw : '' };
   }
 
   private gerarTokens(usuario: Usuario): { token: string; refreshToken: string } {

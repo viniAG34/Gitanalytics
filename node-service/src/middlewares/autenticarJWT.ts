@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/configuracaoDoAmbiente';
-import { PayloadDoToken } from '../tipos';
+import { DadosDoUsuarioAutenticado } from '../tipos';
 import {
   CODIGO_ERRO_TOKEN_AUSENTE,
   CODIGO_ERRO_TOKEN_EXPIRADO,
@@ -9,6 +9,14 @@ import {
   HTTP_STATUS_UNAUTHORIZED,
 } from '../utilitarios/constantes';
 import { responderComErro } from '../utilitarios/respostaHttp';
+
+function extrairDadosDoPayload(
+  decoded: string | jwt.JwtPayload,
+): DadosDoUsuarioAutenticado | null {
+  if (typeof decoded === 'string' || typeof decoded.sub !== 'string') return null;
+  const emailRaw = decoded['email'];
+  return { id: decoded.sub, email: typeof emailRaw === 'string' ? emailRaw : '' };
+}
 
 // Middleware de autenticação JWT — SDD-06, seção 1
 export function autenticarJWT(req: Request, res: Response, next: NextFunction): void {
@@ -24,8 +32,15 @@ export function autenticarJWT(req: Request, res: Response, next: NextFunction): 
   const token = cabecalhoDeAutorizacao.split(' ')[1];
 
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as PayloadDoToken;
-    req.usuarioAutenticado = { id: payload.sub, email: payload.email };
+    const decoded = jwt.verify(token, env.JWT_SECRET);
+    const usuario = extrairDadosDoPayload(decoded);
+    if (!usuario) {
+      res
+        .status(HTTP_STATUS_UNAUTHORIZED)
+        .json(responderComErro(CODIGO_ERRO_TOKEN_INVALIDO, 'Token inválido.'));
+      return;
+    }
+    req.usuarioAutenticado = usuario;
     next();
   } catch (erro) {
     if (erro instanceof jwt.TokenExpiredError) {

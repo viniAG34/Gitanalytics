@@ -2,6 +2,8 @@ import { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { ErroDeNegocio } from '../utilitarios/erros';
 import {
+  CODIGO_ERRO_INTERNO,
+  CODIGO_ERRO_VALIDACAO,
   HTTP_STATUS_BAD_REQUEST,
   HTTP_STATUS_INTERNAL_ERROR,
 } from '../utilitarios/constantes';
@@ -29,7 +31,7 @@ export function tratadorDeErrosGlobal(
     res.status(HTTP_STATUS_BAD_REQUEST).json({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
+        code: CODIGO_ERRO_VALIDACAO,
         message: 'Dados inválidos. Verifique os campos.',
         fields: campos,
       },
@@ -46,7 +48,7 @@ export function tratadorDeErrosGlobal(
   res.status(HTTP_STATUS_INTERNAL_ERROR).json({
     success: false,
     error: {
-      code: 'INTERNAL_ERROR',
+      code: CODIGO_ERRO_INTERNO,
       message: 'Erro interno. Tente novamente em instantes.',
     },
   });

@@ -18,7 +18,7 @@ import {
   ErroUsuarioNaoEncontrado,
 } from '../utilitarios/erros';
 import { ServicoDeAnalise } from './ServicoDeAnalise';
-import { ServicoDeHistorico } from './ServicoDeHistorico';
+import { DadosParaRegistrarHistorico, ServicoDeHistorico } from './ServicoDeHistorico';
 
 // Tipos internos que espelham respostas da API do GitHub (não exportados)
 interface RespostaDePerfilGitHub {
@@ -63,59 +63,21 @@ export class ServicoGitHub {
     username: string,
   ): Promise<RespostaDeBuscaDeUsuario> {
     const chaveDeCache = `github:user:${username}`;
-
-    // 3a. Guard Silent: cache HIT/MISS — SDD-07, seção 1
     const dadosCacheados = await this.cache.buscar<RespostaDeBuscaDeUsuario>(chaveDeCache);
-    if (dadosCacheados) {
-      return dadosCacheados;
-    }
+    if (dadosCacheados) return dadosCacheados;
 
-    // 3b. Busca em paralelo na API do GitHub — SDD-02, seção 5
     const [perfilRaw, reposRaw] = await this.buscarDadosDeUsuarioNoGitHub(username);
-
-    const repositorios: ResumoDeRepositorio[] = reposRaw.map((r) => ({
-      nome: r.name,
-      linguagem: r.language,
-      estrelas: r.stargazers_count,
-      forks: r.forks_count,
-      issuesAbertas: r.open_issues_count,
-      atualizadoEm: r.updated_at,
-    }));
-
-    const perfil: PerfilDeUsuarioGitHub = {
-      username: perfilRaw.login,
-      repositoriosPublicos: perfilRaw.public_repos,
-      seguidores: perfilRaw.followers,
-      repositorios,
-    };
-
-    // 3c. Guard Non-Critical: python-service indisponível → analysisAvailable: false — SDD-07, seção 1
+    const perfil = this.montarPerfilDeUsuario(perfilRaw, reposRaw);
     const { analise, analysisAvailable } = await this.obterAnaliseDeUsuario(perfil);
-
     const score = analise?.activityScore ?? null;
 
-    const resultado: RespostaDeBuscaDeUsuario = {
-      perfil,
-      analise,
-      analysisAvailable,
-      cacheadoEm: null,
-    };
-
-    // 3d. Guard Silent: falha ao armazenar cache — SDD-07, seção 1
-    await this.cache.armazenar(
-      chaveDeCache,
-      { ...resultado, cacheadoEm: new Date().toISOString() },
-      TTL_CACHE_GITHUB_EM_SEGUNDOS,
-    );
-
-    // 3e. Guard Non-Critical: falha ao registrar histórico — SDD-07, seção 1
-    await this.registrarNoHistorico({
+    const resultado: RespostaDeBuscaDeUsuario = { perfil, analise, analysisAvailable, cacheadoEm: null };
+    await this.persistirResultado(chaveDeCache, resultado, {
       usuarioId,
       tipoDeBusca: 'usuario',
       valorBuscado: username,
       score,
     });
-
     return resultado;
   }
 
@@ -125,44 +87,57 @@ export class ServicoGitHub {
     repo: string,
   ): Promise<RespostaDeBuscaDeRepositorio> {
     const chaveDeCache = `github:repo:${owner}:${repo}`;
-
-    // Guard Silent: cache HIT/MISS — SDD-07, seção 1
     const dadosCacheados = await this.cache.buscar<RespostaDeBuscaDeRepositorio>(chaveDeCache);
-    if (dadosCacheados) {
-      return dadosCacheados;
-    }
+    if (dadosCacheados) return dadosCacheados;
 
-    // Busca em paralelo na API do GitHub — SDD-02, seção 5
     const dadosBrutos = await this.buscarDadosDeRepositorioNoGitHub(owner, repo);
-
-    // Guard Non-Critical: python-service indisponível → analysisAvailable: false
     const { analise, analysisAvailable } = await this.obterAnaliseDeRepositorio(dadosBrutos);
-
     const score = analise?.healthScore ?? null;
 
-    const resultado: RespostaDeBuscaDeRepositorio = {
-      dados: dadosBrutos,
-      analise,
-      analysisAvailable,
-      cacheadoEm: null,
-    };
-
-    // Guard Silent: falha ao armazenar cache — SDD-07, seção 1
-    await this.cache.armazenar(
-      chaveDeCache,
-      { ...resultado, cacheadoEm: new Date().toISOString() },
-      TTL_CACHE_GITHUB_EM_SEGUNDOS,
-    );
-
-    // Guard Non-Critical: falha ao registrar histórico — SDD-07, seção 1
-    await this.registrarNoHistorico({
+    const resultado: RespostaDeBuscaDeRepositorio = { dados: dadosBrutos, analise, analysisAvailable, cacheadoEm: null };
+    await this.persistirResultado(chaveDeCache, resultado, {
       usuarioId,
       tipoDeBusca: 'repositorio',
       valorBuscado: `${owner}/${repo}`,
       score,
     });
-
     return resultado;
+  }
+
+  private montarPerfilDeUsuario(
+    perfilRaw: RespostaDePerfilGitHub,
+    reposRaw: RespostaDeRepositorioGitHub[],
+  ): PerfilDeUsuarioGitHub {
+    const repositorios: ResumoDeRepositorio[] = reposRaw.map((r) => ({
+      nome: r.name,
+      linguagem: r.language,
+      estrelas: r.stargazers_count,
+      forks: r.forks_count,
+      issuesAbertas: r.open_issues_count,
+      atualizadoEm: r.updated_at,
+    }));
+    return {
+      username: perfilRaw.login,
+      repositoriosPublicos: perfilRaw.public_repos,
+      seguidores: perfilRaw.followers,
+      repositorios,
+    };
+  }
+
+  // Persiste cache e histórico em paralelo — ambas operações têm tratamento de erro interno — SDD-07
+  private async persistirResultado(
+    chaveDeCache: string,
+    resultado: RespostaDeBuscaDeUsuario | RespostaDeBuscaDeRepositorio,
+    historico: DadosParaRegistrarHistorico,
+  ): Promise<void> {
+    await Promise.all([
+      this.cache.armazenar(
+        chaveDeCache,
+        { ...resultado, cacheadoEm: new Date().toISOString() },
+        TTL_CACHE_GITHUB_EM_SEGUNDOS,
+      ),
+      this.registrarNoHistorico(historico),
+    ]);
   }
 
   private async buscarDadosDeUsuarioNoGitHub(
@@ -177,7 +152,7 @@ export class ServicoGitHub {
       ]);
       return [respostaPerfil.data, respostaRepos.data];
     } catch (erro) {
-      this.tratarErroDeGitHub(erro, 'usuario');
+      return this.tratarErroDeGitHub(erro, 'usuario');
     }
   }
 
@@ -185,27 +160,8 @@ export class ServicoGitHub {
     owner: string,
     repo: string,
   ): Promise<DadosBrutosDeRepositorio> {
-    let respostaRepo: RespostaDeDetalhesDeRepositorioGitHub;
-    try {
-      const res = await this.clienteHttp.get<RespostaDeDetalhesDeRepositorioGitHub>(
-        `/repos/${owner}/${repo}`,
-      );
-      respostaRepo = res.data;
-    } catch (erro) {
-      this.tratarErroDeGitHub(erro, 'repositorio');
-    }
-
-    // A commit activity pode retornar 202 (em processamento) ou falhar — retornar vazio nesses casos
-    let commitsPorSemana: { semana: string; total: number }[] = [];
-    try {
-      const respostaCommits = await this.clienteHttp.get<RespostaDeCommitActivityGitHub[] | null>(
-        `/repos/${owner}/${repo}/stats/commit_activity`,
-      );
-      commitsPorSemana = this.extrairCommitsPorSemana(respostaCommits.data);
-    } catch {
-      // Guard Silent: falha em stats não impede resposta
-    }
-
+    const respostaRepo = await this.buscarDetalhesDeRepositorioNoGitHub(owner, repo);
+    const commitsPorSemana = await this.buscarCommitsPorSemana(owner, repo);
     return {
       owner,
       repo,
@@ -216,6 +172,35 @@ export class ServicoGitHub {
       atualizadoEm: respostaRepo.updated_at,
       commitsPorSemana,
     };
+  }
+
+  private async buscarDetalhesDeRepositorioNoGitHub(
+    owner: string,
+    repo: string,
+  ): Promise<RespostaDeDetalhesDeRepositorioGitHub> {
+    try {
+      const res = await this.clienteHttp.get<RespostaDeDetalhesDeRepositorioGitHub>(
+        `/repos/${owner}/${repo}`,
+      );
+      return res.data;
+    } catch (erro) {
+      return this.tratarErroDeGitHub(erro, 'repositorio');
+    }
+  }
+
+  private async buscarCommitsPorSemana(
+    owner: string,
+    repo: string,
+  ): Promise<{ semana: string; total: number }[]> {
+    try {
+      const res = await this.clienteHttp.get<RespostaDeCommitActivityGitHub[] | null>(
+        `/repos/${owner}/${repo}/stats/commit_activity`,
+      );
+      return this.extrairCommitsPorSemana(res.data);
+    } catch {
+      // Guard Silent: falha em stats não impede resposta — SDD-07, seção 1
+      return [];
+    }
   }
 
   private extrairCommitsPorSemana(
@@ -274,12 +259,7 @@ export class ServicoGitHub {
     }
   }
 
-  private async registrarNoHistorico(dados: {
-    usuarioId: string;
-    tipoDeBusca: 'usuario' | 'repositorio';
-    valorBuscado: string;
-    score: number | null;
-  }): Promise<void> {
+  private async registrarNoHistorico(dados: DadosParaRegistrarHistorico): Promise<void> {
     try {
       await this.servicoDeHistorico.registrar(dados);
     } catch (erro) {
